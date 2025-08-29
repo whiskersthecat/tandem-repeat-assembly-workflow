@@ -1,8 +1,7 @@
 # traw - tandem repeat assembly workflow
-Workflow for closing large gaps caused by large tandem repeats in eukaryotic genome assemblies.
+Workflow for very accurately closing gaps caused by large tandem repeats (e.g. 400 copies of 10,000 bp repeat) in eukaryotic genome assemblies.
 
-(...link to paper...)
-Used to assemble the two Nucleolus Organizer Regions in Telomere to Telomere Gapless Lettuce (_lactuca sativa c. salinas_) Genome.
+Used to assemble the two Nucleolus Organizer Regions (NORs) in [The Telomere to Telomere Gapless Lettuce (_lactuca sativa c. salinas_) Genome Assembly](https://kittishgames.com/pounce/).
 
 **Background**: 
 * In large tandem repeats, real biological variation between adjacent repeats is often vastly outweighed by sequencing errors, rendering the regions unresolveable by classical genome assembly algorithms (DeBrujin Graphs, String Graphs).
