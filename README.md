@@ -1,4 +1,6 @@
-# traw - tandem repeat assembly workflow
+# tiger-paw
+# Tandem Intricate GEnomic Repeat Pattern Assembly Workflow
+
 Workflow for very accurately closing gaps caused by large tandem repeats (e.g. 400 copies of 10,000 bp repeat) in eukaryotic genome assemblies.
 
 Used to assemble the two Nucleolus Organizer Regions (NORs) in [The Telomere to Telomere Gapless Lettuce (_lactuca sativa c. salinas_) Genome Assembly](https://kittishgames.com/pounce/).
