@@ -1,5 +1,5 @@
 # tiger-paw
-# Tandem and Intricate GEnomic Repeat - Puzzle piece Assembly and annotation Workflow
+### t<sub>andem</sub> i<sub>ntricate</sub> ge<sub>nomic</sub> r<sub>epeat</sub> - p<sub>recision</sub> a<sub>ssembly and annotation</sub> w<sub>orkflow</sub>
 
 Workflow for very accurately closing gaps caused by large tandem repeats (e.g. 400 copies of 10,000 bp repeat) in eukaryotic genome assemblies.
 
