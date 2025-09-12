@@ -1,5 +1,5 @@
 # tiger-paw
-# Tandem Intricate GEnomic Repeat Pattern Assembly Workflow
+# Tandem and Intricate GEnomic Repeat - Puzzle piece Assembly and annotation Workflow
 
 Workflow for very accurately closing gaps caused by large tandem repeats (e.g. 400 copies of 10,000 bp repeat) in eukaryotic genome assemblies.
 
