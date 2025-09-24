@@ -83,12 +83,12 @@ blastn -task blastn -query reference/reference.fa -db blastN/DB/long.BDB -out bl
 
 Collect large blast hits and reformat table.
 
-For ***long*** dataset, the value \*SIZE\* should be adjusted to be roughly 20% of your segment length.\
 For ***short*** dataset, the value \*SIZE\* should be adjusted to be roughly 60% of your segment length.
+For ***long*** dataset, the value \*SIZE\* should be adjusted to be roughly 20% of your segment length.\
 
 ```bash
-awk -F'\t' '$6 >= *SIZE*' blastN/reference.vs.long.blastN | sort -k17nr -k2,2 -k13,13n > blastN/reference.vs.long.sorted.blastN
 awk -F'\t' '$6 >= *SIZE*' blastN/reference.vs.short.blastN | sort -k17nr -k2,2 -k13,13n > blastN/reference.vs.short.sorted.blastN
+awk -F'\t' '$6 >= *SIZE*' blastN/reference.vs.long.blastN | sort -k17nr -k2,2 -k13,13n > blastN/reference.vs.long.sorted.blastN
 ```
 
 <sub>\--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- </sub>
@@ -178,8 +178,8 @@ Like step 2b, collect large blast hits and reformat table.
 
 For both datasets, dataset, the value \*SIZE\* should be adjusted to be roughly 20% of your reference segment length.\
 ```bash
-awk -F'\t' '$6 >= *SIZE*' blastN/reference.vs.long.fa.chop.oriented.blastN | sort -k17nr -k2,2 -k13,13n > blastN/reference.vs.long.fa.chop.oriented.sorted.blastN
 awk -F'\t' '$6 >= *SIZE*' blastN/reference.vs.short.fa.chop.oriented.blastN | sort -k17nr -k2,2 -k13,13n > blastN/reference.vs.short.fa.chop.oriented.sorted.blastN
+awk -F'\t' '$6 >= *SIZE*' blastN/reference.vs.long.fa.chop.oriented.blastN | sort -k17nr -k2,2 -k13,13n > blastN/reference.vs.long.fa.chop.oriented.sorted.blastN
 ```
 
 <sub>\--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- </sub>
@@ -188,10 +188,14 @@ awk -F'\t' '$6 >= *SIZE*' blastN/reference.vs.short.fa.chop.oriented.blastN | so
 ### 3c. Segment the reads based on the BLAST hits.
 
 Run the following script on both datasets.\
-Recommended value for \*SIZE\* is 60% of your reference segment length.\
-This is the tolerance to include the segments at the edges of your reads.\
+
+The value for \*SIZE\* determines the tolerance to include the segments at the edges of your reads.\
 A larger (stricter) value will produce fewer segments.\
 A smaller value will produce more partial (truncated) terminal segments.\
+
+The recommended value for \*SIZE\* is different for your two datasets:
+- For the short dataset, it should be very strict. At least 90% of your reference segment length (e.g. -l 9000 for a 10kb reference segment).
+- For the long dataset, it can be more lenient. At to be least 70% of your reference segment length.
 
 ```bash
 python3 03_extractSegments.py reads/short.fa.chopped.oriented.fa blastN/reference.vs.short.fa.chop.oriented.sorted.blastN -l *SIZE*
@@ -205,8 +209,6 @@ This script will generate multiple output files.
    - Small gaps between blast hits are common and not neccesarily indicative of a unique sequence (that is not a repeat segment)
    - The parameter --undetectedSegmentMinimumLength can be adjusted to count more or less of these as real features
 4. reads/short.fa.chopped.oriented.fa.**allregions.fa** is a combination of file 2 and 3
-
-
 
 
 # 4. generating haplotypes
@@ -224,44 +226,62 @@ In essence, this washes away every other base pair in the segment, allowing focu
 ### 4a. Prepare folders and rename segments file.
 ```bash
 mkdir alignments
-mv reads/short.fa.chopped.oriented.fa.segmented.fa reads/short.segments.fa
-mv reads/long.fa.chopped.oriented.fa.segmented.fa reads/long.segments.fa
+mv reads/short.fa.chop.oriented.fa.segmented.fa reads/short.segments.fa
+mv reads/long.fa.chop.oriented.fa.segmented.fa reads/long.segments.fa
 ```
 
 <sub>\--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- </sub>
 
-### 4b. Align all of the segments from the **short** dataset to the reference segment.
+### 4b. Align all of the segments both datasets to the reference segment.
 
 ```bash
 minimap2 -t *THREADS* --eqx -a reference/reference.fa reads/short.segments.fa > alignments/short.segments.sam
+minimap2 -t *THREADS* --eqx -a reference/reference.fa reads/long.segments.fa > alignments/long.segments.sam
 ```
+Note: you won't need the alignment for the long.segments until part 5.
 
 <sub>\--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- </sub>
 
-### 4c. Call variants on this alignment.
+### 4c. Call variants on the alignment of the ***short.segments.sam*** alignment.
 
 ```bash
 python3 04_highCoverageVariantCaller.py alignments/short.segments.sam reference/reference.fa --MODE SNP --min_frequency 0.02
 ```
 
-Experiment with different parameters for calling variants. You may rename the output file to prevent overwriting.\
-It is also highly recommended to visualize variants to ensure that they make sense.\
-If there are variants in homopolymer regions, they are probably not reliable to use (even if they may be real). You may opt to duplicate the output file and remove variants deemed this way.
+Experiment with different min_frequency parameters for calling variants. \
+It is recommended to set the min_frequency so that at least 10 biological segments in the tandem repeat cluster contain this variant.
 
+You can estimate the total segments in your tandem repeat cluster.
+```tsv
+TOTAL_SEGMENTS_IN_TRC = total_segments_in_short_dataset / genomic_coverage_of_short_dataset
+```
+Then you can set min_frequency to be
+```tsv
+min_frequency = 10 / TOTAL_SEGMENTS_IN_TRC
+```
+For example, if TOTAL_SEGMENTS_IN_TRC = 1000 segments, this implies a --min_frequency of 0.01 requires at least 10 segments have this variant.
+
+
+
+You may also call insertion and deletion variants. You may rename the output file to prevent overwriting.\
 ```bash
-python3 04_highCoverageVariantCaller.py alignments/short.segments.sam reference/reference.fa --MODE SNP --min_frequency 0.01
 python3 04_highCoverageVariantCaller.py alignments/short.segments.sam reference/reference.fa --MODE INDEL --min_frequency 0.02
 ```
 
-You can use your total number of segments and read coverage to esimate the number of segments in your repeat clusters, and use this to inform the minimum frequency you want to include a variant at.\
+Notes:
+- Though insertions and deletion variants are common in repeat clusters, they are difficult to precisely measure in noisy long reads.
+- Therefore, it is recommended to use simple SNV and MNV variants, with the option --MODE SNP.
 
-For example, if you expect 1000 segments, this implies a --min_frequency of 0.01 requires at least 10 segments have this variant.
+
+It is also highly recommended to visualize variants to ensure that they make sense.\
+If there are variants in homopolymer regions, they are probably not reliable to use (even if they may be real). You may opt to duplicate the output file and remove variants deemed this way.
+
 
 <sub>\--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- </sub>
 
 ### 4d. Find nucleotides at important locations in alignments.
 
-Consider that your variants file contains these four variants:
+Consider that your variants file from 4c contains these four variants:
 ```tsv
 Reference Position	Type	Length	Reference	Allele	Count	Coverage	Frequency
 500	SNV	1	C	T	678	30014	2.2589458252
@@ -289,13 +309,73 @@ This will output a table which contains the nucleotide at each of the variant lo
 
 Next run this script.
 ```bash
-bash 04_x-cut-transpose-sort-group-x.sh short.segments.sam.VAR.tab.variants_table.tab
+bash 04_findTrace.sh alignments/short.segments.sam.variant_table.tab var1
 ```
-This script will assembly the trace of each segment, and find the most common traces.
+Note:
+- You can adjust **var1** to be another value for a different set of variants
+
+This script will assemble the trace of each segment, and count the occurences of each trace.\
+
+<sub>\--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- </sub>
+
+### 4e. Creating haplotypes
+
+```bash
+mkdir haplotypes
+```
+
+Decide the minimum number of segments you wish to support one trace for it to be real (MIN_SUPPORT) and considered as a haplotype.\
+It is recommended to choose \*MIN_SUPPORT\* such that:
+```tsv
+MIN_SUPPORT >= genomic_coverage_of_short_dataset
+```
+
+```bash
+awk '$1 >= *MIN_SUPPORT* {printf "HAPLOTYPE_%03dC%04d\t%s\n", NR, $1, $2 }' alignments/short.segments.sam.VAR.tab.Traces.Counts > haplotypes/short.segments.sam.VAR.tab.Traces.Counts.Named
+```
+
+Its very useful to rename the haplotypes based on their phylogenetic clustering.\
+First convert to fasta format.
+```bash
+awk '{print ">" $1 "\n" $2}' alignments/short.segments.sam.VAR.tab.Traces.Counts.Named > alignments/short.segments.sam.VAR.tab.Traces.Counts.Named.fa
+```
+Now run this program and input your fasta file:
+```tsv
+https://www.ebi.ac.uk/jdispatcher/phylogeny/simple_phylogeny
+```
+Download the output as ".tree" format into the alignments .\
+Rename the file to "haplotypes.var1.tree"\
+Run this script to map the original haplotype names to new haplotype names based on their clustering group.
+```bash
+python3 04_phylogenyLabeler.py alignments/haplotypes.var1.tree
+```
+
+```bash
+mkdir haplotypes
+sort alignments/haplotypes.var1.tree.RENAMED.tsv > alignments/haplotypes.var1.tree.RENAMED.sorted.tsv
+join alignments/haplotypes.var1.tree.RENAMED.sorted.tsv alignments/short.segments.sam.variant_table.tab.Variants.var1.Traces.Counts.Named | awk '{print $2"\t"$4}' > haplotypes/haplotypes.var1.tsv
+```
+
+The haplotypes file should look something like this:
+```tsv
+1A	CTCGCTAGTCAGAGTGAGTTCCTTAGATGACTTGGGGCCTCGAGATT
+1D	CTCGCTAGTCAGAGTGAGTCCCTTAGATGACCTGTAGCCTCGAGATT
+1B	CTCGCTAGTCAGAGTGAGTTCCTTAGATGACTTGGG---TCGAGATT
+1A	CTCGCTAGTCAGAGTGAGTTCCTTAGATGACTTGGGG--TCGAGATT
+7L	CTCGCTAGTCAGAGTGAGTCCCTTAGATGACCTGTA---TCGAGATT
+6D	CGTAACGAGACAGACAGTCTGTACGGCTAGTCCATGTCCGGTCTCAA
+7I	CTCGCTAGTCAGAGTGAGTCCCTTAGATGACCTGTAG--TCGAGATT
+...
+```
+
+Notes:
+- It is highly recommended to make two distinct set of haplotypes, at different depths of variant frequency.
+- For example, one at 0.01 frequency, and one at 0.02 frequency.
+- Higher frequencies will produce tighter haplotypes with smaller traces, that are easier to categorize and more robust to sequencing errors.
+- Lower frequencies will allow for rarer variations to be used, at the cost of decreased accuracy in haplotype assigning (step 5).
 
 
-
-# 5. building blocks
+# 5. creating blocks
 
 A ***block*** is a single read listed as the haplotypes of its constituent segments, e.g.
 
@@ -310,5 +390,10 @@ Notes:
 
 ### 5a. Assigning haplotypes to each segment
 
+Generate the trace of each segment in the long.fa dataset.
+
 ```bash
+python3 04_findVariants.py alignments/long.segments.sam alignments/long.segments.sam.VAR.tab reference/reference.fa
+bash 04_findTrace.sh alignments/long.segments.sam.variant_table.tab var1
 ```
+
